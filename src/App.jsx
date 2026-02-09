@@ -499,8 +499,8 @@ export default function VaRApp() {
     { label: "Undiversified", value: portResult.undivVaR },
   ] : [];
 
-  const compVarData = portResult ? portResult.riskyTickers.map((t, i) => ({
-    name: t, value: portResult.compVaR[i]
+  const compVarPctData = portResult ? portResult.riskyTickers.map((t, i) => ({
+    name: t, value: (portResult.compVaR[i] / portResult.diversifiedVaR) * 100
   })) : [];
 
   // ── Return timeseries for chart (downsample if huge) ──
@@ -832,13 +832,13 @@ export default function VaRApp() {
                 <div style={{ background: BG_CARD2, borderRadius: 10, padding: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_DIM, marginBottom: 10 }}>Risk Contribution by Asset</div>
                   <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={compVarData}>
+                    <BarChart data={compVarPctData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                       <XAxis dataKey="name" tick={{ fontSize: 11, fill: TEXT_DIM }} />
-                      <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip formatter={v => `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} tickFormatter={(v) => `${Number(v).toFixed(1)}%`} />
+                      <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
                       <Bar dataKey="value" radius={[4, 4, 0, 0]} >
-                        {compVarData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                        {compVarPctData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                       </Bar>
                       <ReferenceLine y={0} stroke={TEXT_DIM} />
                     </BarChart>
