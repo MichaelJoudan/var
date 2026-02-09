@@ -6,7 +6,7 @@ import {
 } from "recharts";
 
 /* ═══════════════════════════════════════════════════════
-   MATH ENGINE — Pure JS reimplementation of var.py
+   MATH ENGINE
    ═══════════════════════════════════════════════════════ */
 
 // Normal distribution helpers (replaces scipy.stats.norm)
