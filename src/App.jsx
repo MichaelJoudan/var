@@ -6,7 +6,7 @@ import {
 } from "recharts";
 
 /* ═══════════════════════════════════════════════════════
-   MATH ENGINE
+   MATH ENGINE — Pure JS reimplementation of var.py
    ═══════════════════════════════════════════════════════ */
 
 // Normal distribution helpers (replaces scipy.stats.norm)
@@ -323,6 +323,35 @@ const CorrTable = ({ matrix, labels }) => (
   </div>
 );
 
+// ── Custom Tooltip ──
+const tooltipStyle = {
+  background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 8,
+  padding: "10px 14px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace",
+  boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+};
+
+const CustomTooltip = ({ active, payload, labelKey, valuePrefix = "", valueSuffix = "", decimals = 2 }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={tooltipStyle}>
+      {payload[0]?.payload?.[labelKey || "name"] && (
+        <div style={{ color: TEXT, fontWeight: 700, marginBottom: 6, fontSize: 14 }}>
+          {payload[0].payload[labelKey || "name"]}
+        </div>
+      )}
+      {payload.map((entry, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: entry.color || entry.fill, flexShrink: 0 }} />
+          <span style={{ color: TEXT_DIM }}>{entry.name || entry.dataKey}:</span>
+          <span style={{ color: TEXT, fontWeight: 600 }}>
+            {valuePrefix}{typeof entry.value === "number" ? entry.value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : entry.value}{valueSuffix}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ── Main App ──
 export default function VaRApp() {
   // Input state
@@ -499,8 +528,8 @@ export default function VaRApp() {
     { label: "Undiversified", value: portResult.undivVaR },
   ] : [];
 
-  const compVarPctData = portResult ? portResult.riskyTickers.map((t, i) => ({
-    name: t, value: (portResult.compVaR[i] / portResult.diversifiedVaR) * 100
+  const compVarData = portResult ? portResult.riskyTickers.map((t, i) => ({
+    name: t, value: portResult.compVaR[i]
   })) : [];
 
   // ── Return timeseries for chart (downsample if huge) ──
@@ -727,7 +756,16 @@ export default function VaRApp() {
                       <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                       <XAxis dataKey="bin" tick={{ fontSize: 10, fill: TEXT_DIM }} interval="preserveStartEnd" />
                       <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} />
-                      <Tooltip contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div style={tooltipStyle}>
+                            <div style={{ color: TEXT, fontWeight: 700, marginBottom: 4 }}>Return Bin: {d.bin}%</div>
+                            <div style={{ color: TEXT_DIM }}>Frequency: <span style={{ color: TEXT, fontWeight: 600 }}>{d.count} days</span></div>
+                          </div>
+                        );
+                      }} />
                       <Bar dataKey="count" fill="#457b9d" radius={[2, 2, 0, 0]} />
                       <ReferenceLine x={(-singleResult.varH * 100).toFixed(2)} stroke={ACCENT} strokeDasharray="4 4" label={{ value: "VaR", fill: ACCENT, fontSize: 11 }} />
                     </BarChart>
@@ -742,7 +780,22 @@ export default function VaRApp() {
                       <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                       <XAxis dataKey="method" tick={{ fontSize: 11, fill: TEXT_DIM }} />
                       <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} unit="%" />
-                      <Tooltip contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div style={tooltipStyle}>
+                            <div style={{ color: TEXT, fontWeight: 700, marginBottom: 6 }}>{d.method}</div>
+                            {payload.map((entry, i) => entry.value != null && (
+                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: "50%", background: entry.color, flexShrink: 0 }} />
+                                <span style={{ color: TEXT_DIM }}>{entry.name}:</span>
+                                <span style={{ color: TEXT, fontWeight: 600 }}>{entry.value.toFixed(4)}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }} />
                       <Bar dataKey="var" fill="#457b9d" name="VaR" radius={[3, 3, 0, 0]} />
                       <Bar dataKey="es" fill="#e9c46a" name="ES" radius={[3, 3, 0, 0]} />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -759,7 +812,16 @@ export default function VaRApp() {
                     <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                     <XAxis dataKey="date" tick={{ fontSize: 9, fill: TEXT_DIM }} interval="preserveStartEnd" minTickGap={60} />
                     <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} unit="%" />
-                    <Tooltip contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                    <Tooltip content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={tooltipStyle}>
+                          <div style={{ color: TEXT, fontWeight: 700, marginBottom: 4 }}>{d.date}</div>
+                          <div style={{ color: TEXT_DIM }}>Daily Return: <span style={{ color: d.return >= 0 ? GREEN : ACCENT, fontWeight: 600 }}>{d.return.toFixed(4)}%</span></div>
+                        </div>
+                      );
+                    }} />
                     <Area type="monotone" dataKey="return" stroke="#457b9d" fill="rgba(69,123,157,0.15)" strokeWidth={1} dot={false} />
                     <ReferenceLine y={-singleResult.varH * 100} stroke={ACCENT} strokeDasharray="4 4" label={{ value: `VaR ${(singleResult.varH * 100).toFixed(2)}%`, fill: ACCENT, fontSize: 10 }} />
                   </AreaChart>
@@ -805,7 +867,18 @@ export default function VaRApp() {
                       <Pie data={portPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name} ${value.toFixed(1)}%`} labelLine={{ stroke: TEXT_DIM }} strokeWidth={1} stroke={BG_CARD}>
                         {portPieData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                       </Pie>
-                      <Tooltip contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        const dollarVal = pv * d.value / 100;
+                        return (
+                          <div style={tooltipStyle}>
+                            <div style={{ color: TEXT, fontWeight: 700, marginBottom: 4 }}>{d.name}</div>
+                            <div style={{ color: TEXT_DIM }}>Weight: <span style={{ color: TEXT, fontWeight: 600 }}>{d.value.toFixed(1)}%</span></div>
+                            <div style={{ color: TEXT_DIM }}>Value: <span style={{ color: TEXT, fontWeight: 600 }}>${dollarVal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
+                          </div>
+                        );
+                      }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -818,7 +891,16 @@ export default function VaRApp() {
                       <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                       <XAxis dataKey="label" tick={{ fontSize: 10, fill: TEXT_DIM }} />
                       <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip formatter={v => `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div style={tooltipStyle}>
+                            <div style={{ color: TEXT, fontWeight: 700, marginBottom: 4 }}>{d.label}</div>
+                            <div style={{ color: TEXT_DIM }}>VaR: <span style={{ color: ACCENT, fontWeight: 600 }}>${d.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                          </div>
+                        );
+                      }} />
                       <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                         {portVarCompare.map((_, i) => <Cell key={i} fill={[ACCENT, "#457b9d", "#f4a261"][i]} />)}
                       </Bar>
@@ -832,13 +914,24 @@ export default function VaRApp() {
                 <div style={{ background: BG_CARD2, borderRadius: 10, padding: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_DIM, marginBottom: 10 }}>Risk Contribution by Asset</div>
                   <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={compVarPctData}>
+                    <BarChart data={compVarData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                       <XAxis dataKey="name" tick={{ fontSize: 11, fill: TEXT_DIM }} />
-                      <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} tickFormatter={(v) => `${Number(v).toFixed(1)}%`} />
-                      <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        const pctOfTotal = portResult.diversifiedVaR > 0 ? (d.value / portResult.diversifiedVaR * 100) : 0;
+                        return (
+                          <div style={tooltipStyle}>
+                            <div style={{ color: TEXT, fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{d.name}</div>
+                            <div style={{ color: TEXT_DIM, marginBottom: 3 }}>Component VaR: <span style={{ color: ACCENT, fontWeight: 600 }}>${d.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                            <div style={{ color: TEXT_DIM }}>% of Portfolio VaR: <span style={{ color: TEXT, fontWeight: 600 }}>{pctOfTotal.toFixed(1)}%</span></div>
+                          </div>
+                        );
+                      }} />
                       <Bar dataKey="value" radius={[4, 4, 0, 0]} >
-                        {compVarPctData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                        {compVarData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                       </Bar>
                       <ReferenceLine y={0} stroke={TEXT_DIM} />
                     </BarChart>
@@ -888,7 +981,26 @@ export default function VaRApp() {
                     <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
                     <XAxis dataKey="day" tick={{ fontSize: 9, fill: TEXT_DIM }} />
                     <YAxis tick={{ fontSize: 10, fill: TEXT_DIM }} unit="%" />
-                    <Tooltip contentStyle={{ background: BG_DARK, border: `1px solid ${BORDER}`, borderRadius: 6, fontSize: 12 }} />
+                    <Tooltip content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div style={tooltipStyle}>
+                          <div style={{ color: TEXT, fontWeight: 700, marginBottom: 6 }}>Day {d.day}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#457b9d" }} />
+                            <span style={{ color: TEXT_DIM }}>Return:</span>
+                            <span style={{ color: d.return >= 0 ? GREEN : ACCENT, fontWeight: 600 }}>{d.return.toFixed(4)}%</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: ACCENT }} />
+                            <span style={{ color: TEXT_DIM }}>VaR Threshold:</span>
+                            <span style={{ color: TEXT, fontWeight: 600 }}>{d.var.toFixed(4)}%</span>
+                          </div>
+                          {d.exceed && <div style={{ color: ACCENT, fontWeight: 600, marginTop: 4 }}>⚠ VaR Exceedance</div>}
+                        </div>
+                      );
+                    }} />
                     <Line type="monotone" dataKey="return" stroke="#457b9d" strokeWidth={1} dot={false} name="Return" />
                     <Line type="monotone" dataKey="var" stroke={ACCENT} strokeWidth={1.5} strokeDasharray="4 3" dot={false} name="VaR Threshold" />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
